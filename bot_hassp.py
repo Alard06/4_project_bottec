@@ -5,7 +5,7 @@ import dotenv
 import time
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -64,14 +64,16 @@ async def convert_voice_to_text(file_id):
 
     return transcript.text
 
-async def wait_for_assistant_response(thread_id, run_id, timeout=120):
-    end_time = time.time() + timeout
-    while time.time() < end_time:
+
+async def wait_until_run_completed(thread_id, run_id):
+    """Ждёт завершения run-а ассистента, без тайм-аута (пока не завершится или не будет ошибка)."""
+    while True:
         run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
         if run_status.status == 'completed':
             return True
+        elif run_status.status in ('failed', 'cancelled', 'expired'):
+            return False
         await asyncio.sleep(2)
-    return False
 
 def get_user_thread(user_id):
     if user_id not in user_threads:
@@ -80,38 +82,41 @@ def get_user_thread(user_id):
     return user_threads[user_id]
 
 
-async def send_message_to_assistant(message, user_id, content, file=None):
-    thread_id = get_user_thread(user_id)
+async def send_message_to_assistant(message: Message, user_id: int, prompt: str, file=None):
+    thread_id = user_threads.get(user_id)
+    if not thread_id:
+        thread = client.beta.threads.create()
+        thread_id = thread.id
+        user_threads[user_id] = thread_id
 
+    msg_data = {"role": "user", "content": prompt}
     if file:
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=content or "Пожалуйста, проанализируй этот файл",
-            file_ids=file.id
-        )
-    else:
-        client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=content,
-        )
+        msg_data["file_ids"] = [file.id]
 
-    prompt = db.execute('SELECT prompt FROM administration_bot WHERE name="@Gsg_hassp_bot"')[0][0]
+    client.beta.threads.messages.create(thread_id=thread_id, **msg_data)
+
     run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=ASSISTANT_ID, instructions=prompt)
 
-    if not await wait_for_assistant_response(thread_id, run.id):
-        await message.reply("Превышено время ожидания ответа от ассистента.")
+    if not await wait_until_run_completed(thread_id, run.id):
+        await message.reply("Ассистент не смог завершить обработку. Попробуйте позже.")
         return
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
-    assistant_messages = [msg for msg in messages.data if msg.role == 'assistant']
-    if assistant_messages:
-        #await message.reply(repr(thread_id), parse_mode='None')
-        #await message.reply(repr(assistant_messages), parse_mode='None')
-        await message.reply(assistant_messages[0].content[0].text.value)
+    for msg in reversed(messages.data):
+        if msg.role == 'assistant':
+            if msg.file_ids:
+                for file_id in msg.file_ids:
+                    file_info = client.files.retrieve(file_id)
+                    file_content = client.files.content(file_id).read()
+
+                    telegram_file = BufferedInputFile(file_content, filename=file_info.filename or "file.txt")
+                    await message.answer_document(telegram_file, caption="📎 Вот ваш файл от ассистента")
+            else:
+                full_text = "\n".join(part.text.value for part in msg.content if hasattr(part, "text"))
+                await message.answer(full_text)
+            break
     else:
-        await message.reply("Ассистент не предоставил ответ.")
+        await message.reply("Ассистент не дал ответа.")
 
 
 
@@ -270,6 +275,7 @@ async def handle_files(message: Message):
         print(f"Ошибка при обработке файла: {str(e)}")
         await message.reply(f"Произошла ошибка при обработке файла. Пожалуйста, попробуйте еще раз.")
 
+
 @dp.message()
 async def handle_message(message: Message):
     user_id = message.from_user.id
@@ -299,13 +305,7 @@ async def handle_message(message: Message):
             instructions=prompt
         )
 
-        timeout = time.time() + 160 
-        while time.time() < timeout:
-            run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-            if run_status.status == 'completed':
-                break
-            await asyncio.sleep(1)
-        else:
+        if not await wait_until_run_completed(thread_id, run.id):
             await message.reply("Превышено время ожидания ответа от ассистента.")
             return
 
@@ -327,6 +327,8 @@ async def handle_message(message: Message):
     except Exception as e:
         print(f"Ошибка: {e}")
         await message.reply("Произошла ошибка при обработке запроса.")
+
+
 
 async def main():
     await delete_webhook(bot)
