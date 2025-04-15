@@ -83,11 +83,7 @@ def get_user_thread(user_id):
 
 
 async def send_message_to_assistant(message: Message, user_id: int, prompt: str, file=None):
-    thread_id = user_threads.get(user_id)
-    if not thread_id:
-        thread = client.beta.threads.create()
-        thread_id = thread.id
-        user_threads[user_id] = thread_id
+    thread_id = get_user_thread(user_id)
 
     if file:
         client.beta.threads.messages.create(
@@ -103,9 +99,12 @@ async def send_message_to_assistant(message: Message, user_id: int, prompt: str,
             content=prompt
         )
 
+    prompt_instruction = db.execute('SELECT prompt FROM administration_bot WHERE name="@Gsg_hassp_bot"')[0][0]
+
     run = client.beta.threads.runs.create(
         thread_id=thread_id,
-        assistant_id=ASSISTANT_ID
+        assistant_id=ASSISTANT_ID,
+        instructions=prompt_instruction
     )
 
     if not await wait_until_run_completed(thread_id, run.id):
@@ -113,7 +112,6 @@ async def send_message_to_assistant(message: Message, user_id: int, prompt: str,
         return
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
-
     for msg in reversed(messages.data):
         if msg.role == 'assistant':
             if msg.file_ids:
