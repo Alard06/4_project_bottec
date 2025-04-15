@@ -280,6 +280,7 @@ async def handle_files(message: Message):
 
     except Exception as e:
         print(f"Ошибка при обработке файла: {str(e)}")
+        await message.reply(f'{e}')
         await message.reply(f"Произошла ошибка при обработке файла. Пожалуйста, попробуйте еще раз.")
 
 
