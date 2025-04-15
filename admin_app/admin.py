@@ -57,6 +57,8 @@ class UserRequestAdmin(admin.ModelAdmin):
             f"Доступ до: {until}"
         )
 
+        print(f"Отправляем сообщение пользователю {obj.full_name} ({chat_id}): {text}")
+
         for token in tokens:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
             payload = {
@@ -66,5 +68,6 @@ class UserRequestAdmin(admin.ModelAdmin):
             try:
                 response = requests.post(url, data=payload)
                 response.raise_for_status()
+                print(f"Сообщение успешно отправлено для токена {token}")
             except requests.RequestException as e:
                 print(f"Ошибка отправки сообщения ботом с токеном {token}: {e}")
