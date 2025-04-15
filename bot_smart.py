@@ -209,7 +209,7 @@ async def handle_voice(message: Message):
 @dp.message(F.content_type.in_({'document', 'photo'}))
 async def handle_files(message: Message):
     user_id = message.from_user.id
-    
+    await message.reply(f'Загружен файл')
     user_request = db.execute('SELECT * FROM user_request WHERE user_id = ? AND status = "approved"', (user_id,))
     if not user_request:
         await message.answer("Доступ к боту ограничен. Пожалуйста, пройдите регистрацию с помощью команды /start.")

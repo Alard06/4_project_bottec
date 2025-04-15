@@ -224,9 +224,9 @@ async def handle_files(message: Message):
     
     user_request = db.execute('SELECT * FROM user_request WHERE user_id = ? AND status = "approved"', (user_id,))
     if not user_request:
-        await message.answer("Доступ к боту ограничен. Пожалуйста, пройдите регистрацию с помощью команды /start.")
+        await message.answer("Доступ к боту ограничен. Пожалуйста, пройдите регистрацыию с помощью команды /start.")
         return
-    
+    await message.reply(f'Загружен файл')
     try:
         if user_id not in user_threads:
             thread = client.beta.threads.create()
