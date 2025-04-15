@@ -325,7 +325,7 @@ async def handle_message(message: Message):
             await message.reply("Я не получил ответ от ассистента.")
 
     except Exception as e:
-        print(f"Ошибка: {e}")
+        await message.reply(f"{e}")
         await message.reply("Произошла ошибка при обработке запроса.")
 
 async def main():
