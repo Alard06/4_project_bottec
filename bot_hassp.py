@@ -321,6 +321,7 @@ async def handle_message(message: Message):
         )
 
         if assistant_messages:
+            print(assistant_messages)
             await message.reply(assistant_messages[-1].content[0].text.value)
         else:
             await message.reply("Я не получил ответ от ассистента.")
