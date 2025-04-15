@@ -82,6 +82,7 @@ def get_user_thread(user_id):
     return user_threads[user_id]
 
 
+
 async def send_message_to_assistant(message: Message, user_id: int, prompt: str, file=None):
     thread_id = user_threads.get(user_id)
     if not thread_id:
@@ -89,29 +90,37 @@ async def send_message_to_assistant(message: Message, user_id: int, prompt: str,
         thread_id = thread.id
         user_threads[user_id] = thread_id
 
-    msg_data = {"role": "user", "content": prompt}
     if file:
-        msg_data["file_ids"] = [file.id]
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=prompt,
+            file_ids=[file.id]
+        )
+    else:
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=prompt
+        )
 
-    client.beta.threads.messages.create(thread_id=thread_id, **msg_data)
-
-    run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=ASSISTANT_ID, instructions=prompt)
+    run = client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=ASSISTANT_ID
+    )
 
     if not await wait_until_run_completed(thread_id, run.id):
         await message.reply("Ассистент не смог завершить обработку. Попробуйте позже.")
         return
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
-    await message.reply(messages)
+
     for msg in reversed(messages.data):
-        print(msg)
         if msg.role == 'assistant':
-            print(msg)
             if msg.file_ids:
                 for file_id in msg.file_ids:
                     file_info = client.files.retrieve(file_id)
                     file_content = client.files.content(file_id).read()
-
                     telegram_file = BufferedInputFile(file_content, filename=file_info.filename or "file.txt")
                     await message.answer_document(telegram_file, caption="📎 Вот ваш файл от ассистента")
             else:
