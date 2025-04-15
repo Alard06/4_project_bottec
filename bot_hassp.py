@@ -283,6 +283,7 @@ async def handle_files(message: Message):
         await message.reply(f"Произошла ошибка при обработке файла. Пожалуйста, попробуйте еще раз.")
 
 
+
 @dp.message()
 async def handle_message(message: Message):
     user_id = message.from_user.id
@@ -323,12 +324,17 @@ async def handle_message(message: Message):
 
         assistant_messages = sorted(
             [msg for msg in messages.data if msg.role == 'assistant'],
-            key=lambda msg: msg.created_at
+            key=lambda msg: msg.created_at,
+            reverse=True  
         )
 
         if assistant_messages:
-            await message.reply(assistant_messages)
-            await message.reply(assistant_messages[-1].content[0].text.value)
+            latest_message = assistant_messages[0]
+            if hasattr(latest_message.content[0], 'text'):
+                response_text = latest_message.content[0].text.value
+                await message.reply(response_text)
+            else:
+                await message.reply("Ассистент вернул ответ в неподдерживаемом формате.")
         else:
             await message.reply("Я не получил ответ от ассистента.")
 
