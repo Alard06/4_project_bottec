@@ -42,11 +42,15 @@ class UserRequest(models.Model):
         ('rejected', 'Отклонено')
     ], default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    access_bots = models.ManyToManyField(AdministrationBot, blank=True)
+    access_until = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.full_name} ({self.user_id})"
-    
+
     class Meta:
         db_table = 'user_request'
         verbose_name = 'Запрос пользователя'
         verbose_name_plural = 'Запросы пользователей'
+
+

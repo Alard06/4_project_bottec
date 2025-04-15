@@ -19,19 +19,21 @@ class AdministrationBotAdmin(admin.ModelAdmin):
     search_fields = ('name', 'assistant_token', 'api_token')
     list_filter = ('name',)
     fields = ('name', 'assistant_token', 'api_token', 'prompt')
-    
+
     def prompt_preview(self, obj):
         return obj.prompt[:50] + '...' if obj.prompt else '-'
     prompt_preview.short_description = 'Prompt (preview)'
 
 
 
+
+
 @admin.register(UserRequest)
 class UserRequestAdmin(admin.ModelAdmin):
-    list_display = ('user_id', 'full_name', 'phone', 'company', 'position', 'status', 'created_at')
+    list_display = ('user_id', 'full_name', 'phone', 'company', 'position', 'status', 'access_until', 'created_at')
     search_fields = ('user_id', 'full_name', 'phone', 'company', 'position')
-    list_filter = ('status',)
-    fields = ('user_id', 'full_name', 'phone', 'company', 'position', 'status')
+    list_filter = ('status', 'access_until')
+    fields = ('user_id', 'full_name', 'phone', 'company', 'position', 'status', 'access_bots', 'access_until')
 
     def save_model(self, request, obj, form, change):
         if change:
@@ -44,7 +46,16 @@ class UserRequestAdmin(admin.ModelAdmin):
         tokens = SettingsBot.objects.values_list('token', flat=True)
 
         chat_id = obj.user_id
-        text = f"Ваш запрос одобрен! Добро пожаловать, {obj.full_name}!"
+        bots = obj.access_bots.all()
+        bot_names = ', '.join([b.name for b in bots]) if bots else 'Нет'
+        until = obj.access_until.strftime('%d.%m.%Y %H:%M') if obj.access_until else 'Не ограничено'
+
+        text = (
+            f"Ваш запрос одобрен!\n"
+            f"Имя: {obj.full_name}\n"
+            f"Доступ к ботам: {bot_names}\n"
+            f"Доступ до: {until}"
+        )
 
         for token in tokens:
             url = f"https://api.telegram.org/bot{token}/sendMessage"
