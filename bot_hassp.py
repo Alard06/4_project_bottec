@@ -102,6 +102,7 @@ async def send_message_to_assistant(message: Message, user_id: int, prompt: str,
         return
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
+    await message.reply(messages)
     for msg in reversed(messages.data):
         await message.reply(msg)
         if msg.role == 'assistant':

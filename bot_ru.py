@@ -102,7 +102,9 @@ async def send_message_to_assistant(message: Message, user_id: int, prompt: str,
         return
 
     messages = client.beta.threads.messages.list(thread_id=thread_id)
+    await message.reply(messages)
     for msg in reversed(messages.data):
+        print(msg)
         if msg.role == 'assistant':
             print(msg)
             if msg.file_ids:
@@ -320,6 +322,7 @@ async def handle_message(message: Message):
         )
 
         if assistant_messages:
+            await message.reply(assistant_messages)
             await message.reply(assistant_messages[-1].content[0].text.value)
         else:
             await message.reply("Я не получил ответ от ассистента.")
